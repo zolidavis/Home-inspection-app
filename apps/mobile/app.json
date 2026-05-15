@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Home Inspection",
+    "slug": "hia-mobile",
+    "scheme": "hia",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.hia.mobile",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Capture inspection photos for reports.",
+        "NSPhotoLibraryUsageDescription": "Attach existing photos to inspections."
+      }
+    },
+    "android": {
+      "package": "com.hia.mobile",
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE"]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        { "cameraPermission": "Allow Home Inspection to access your camera." }
+      ]
+    ],
+    "extra": {
+      "apiBaseUrl": "http://localhost:8787"
+    }
+  }
+}

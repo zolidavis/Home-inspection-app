@@ -1,0 +1,113 @@
+import Constants from "expo-constants";
+import type {
+  Address,
+  Inspection,
+  InspectionType,
+  Photo,
+  PropertyLookup,
+} from "@hia/shared";
+
+const BASE = (Constants.expoConfig?.extra?.apiBaseUrl as string) ?? "http://localhost:8787";
+
+async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} ${path}`);
+  return (await res.json()) as T;
+}
+
+export const api = {
+  listInspections: () => req<Inspection[]>("/inspections"),
+  getInspection: (id: string) => req<Inspection>(`/inspections/${id}`),
+  createInspection: (body: {
+    type: InspectionType;
+    address: Address;
+    inspectorName?: string;
+    inspectorLicense?: string;
+  }) =>
+    req<Inspection>("/inspections", { method: "POST", body: JSON.stringify(body) }),
+  patchInspection: (id: string, body: Partial<Inspection>) =>
+    req<Inspection>(`/inspections/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+
+  lookupAddress: (address: Address) =>
+    req<PropertyLookup>("/address/lookup", {
+      method: "POST",
+      body: JSON.stringify(address),
+    }),
+
+  analyzePhoto: (photoId: string) =>
+    req<{ summary: string; findings: any[] }>("/ai/analyze", {
+      method: "POST",
+      body: JSON.stringify({ photoId }),
+    }),
+
+  uploadPhoto: async (params: {
+    inspectionId: string;
+    tag: string;
+    uri: string;
+  }): Promise<Photo> => {
+    const form = new FormData();
+    form.append("inspectionId", params.inspectionId);
+    form.append("tag", params.tag);
+    // @ts-expect-error RN FormData file shape
+    form.append("file", {
+      uri: params.uri,
+      name: `${params.tag}-${Date.now()}.jpg`,
+      type: "image/jpeg",
+    });
+    const res = await fetch(`${BASE}/photos`, { method: "POST", body: form as any });
+    if (!res.ok) throw new Error(`upload failed: ${res.status}`);
+    return res.json();
+  },
+
+  pdfUrl: (inspectionId: string, type: InspectionType) =>
+    `${BASE}/pdf/${inspectionId}?type=${type}`,
+
+  getSuggestions: (inspectionId: string) =>
+    req<{ suggestions: Suggestion[] }>(`/inspections/${inspectionId}/suggestions`),
+
+  applySuggestions: (
+    inspectionId: string,
+    applied: Array<{ form: "fourPoint" | "windMit"; path: string; value: unknown }>
+  ) =>
+    req<Inspection>(`/inspections/${inspectionId}/apply`, {
+      method: "POST",
+      body: JSON.stringify({ applied }),
+    }),
+
+  /**
+   * Resolves with the updated inspection on success.
+   * Rejects with a CompleteError carrying per-form field errors on 400.
+   */
+  completeInspection: async (inspectionId: string): Promise<Inspection> => {
+    const res = await fetch(`${BASE}/inspections/${inspectionId}/complete`, { method: "POST" });
+    if (res.ok) return res.json();
+    if (res.status === 400) {
+      const body = await res.json();
+      throw new CompleteError("Incomplete form", body);
+    }
+    throw new Error(`${res.status} ${res.statusText}`);
+  },
+};
+
+export class CompleteError extends Error {
+  constructor(msg: string, public payload: any) { super(msg); }
+}
+
+export interface Suggestion {
+  form: "fourPoint" | "windMit";
+  path: string;
+  value: unknown;
+  rawValue: string;
+  confidence: number;
+  notes?: string;
+  sourcePhotoId: string;
+  sourcePhotoTag: string;
+  currentValue: unknown;
+  conflictsWithCurrent: boolean;
+}
