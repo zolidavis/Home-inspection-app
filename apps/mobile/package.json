@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.25.0",
+    "@expo/metro-runtime": "~4.0.0",
     "@inspect-ai/shared": "workspace:*",
     "expo": "~52.0.0",
     "expo-application": "~6.0.0",
