@@ -17,13 +17,20 @@
     },
     "android": {
       "package": "com.inspectai.mobile",
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE"]
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
       [
         "expo-camera",
-        { "cameraPermission": "Allow Inspect AI to access your camera." }
+        {
+          "cameraPermission": "Allow Inspect AI to access your camera."
+        }
       ],
       [
         "expo-build-properties",
@@ -35,7 +42,14 @@
       ]
     ],
     "extra": {
-      "apiBaseUrl": "http://localhost:8787"
-    }
+      "apiBaseUrl": "http://localhost:8787",
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "41dc96e8-436a-4789-b7e5-19193f5e94dc"
+      }
+    },
+    "owner": "zolidavis"
   }
 }
