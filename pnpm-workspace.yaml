@@ -1,6 +1,9 @@
 packages:
   - "apps/*"
   - "packages/*"
-allowBuilds:
-  better-sqlite3: set this to true or false
-  esbuild: set this to true or false
+
+# Hoist node_modules to a single tree. Required for:
+#   - Expo / Metro autolinking on EAS builds (workspace symlinks break it)
+#   - Edge bundling (esbuild can't follow pnpm symlinks)
+# See fantasy-draft-buddy gotcha notes.
+nodeLinker: hoisted

@@ -1,3 +1,3 @@
-export * from "./types.js";
-export * as FourPoint from "./forms/four-point.js";
-export * as WindMit from "./forms/wind-mitigation.js";
+export * from "./types";
+export * as FourPoint from "./forms/four-point";
+export * as WindMit from "./forms/wind-mitigation";

@@ -1,0 +1,55 @@
+name: Build mobile app
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile"
+        required: true
+        default: "preview"
+        type: choice
+        options:
+          - development
+          - preview
+          - production
+      platform:
+        description: "Target platform"
+        required: true
+        default: "android"
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+
+env:
+  # Silence Node 22's punycode deprecation warning bubbling up from
+  # transitive deps (glob/tar/eas-cli). Pure noise reduction.
+  NODE_OPTIONS: "--no-deprecation"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: pnpm/action-setup@v4
+        # Omit `with.version` — conflicts with packageManager in root package.json.
+
+      - name: Install dependencies
+        # `--dangerously-allow-all-builds` required for esbuild + better-sqlite3
+        # postinstalls under pnpm 11.
+        run: pnpm install --dangerously-allow-all-builds
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Run EAS build
+        working-directory: apps/mobile
+        run: eas build --non-interactive --no-wait --profile ${{ inputs.profile }} --platform ${{ inputs.platform }}
