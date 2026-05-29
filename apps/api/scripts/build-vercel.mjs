@@ -30,6 +30,28 @@ await mkdir(FUNC, { recursive: true });
 
 console.log("Bundling api/index.ts → .vercel/output/functions/api/index.func/index.js");
 
+/**
+ * Plugin: replace `./storage-local.ts` (the Node-only filesystem
+ * backend) with a stub that throws if called. This is the cleanest way
+ * to keep node:fs/promises and node:path out of the bundle — Vercel
+ * Edge's static analyzer rejects ANY node:* reference, even from dead
+ * code branches.
+ */
+const stubLocalStorage = {
+  name: "stub-local-storage",
+  setup(b) {
+    b.onResolve({ filter: /storage-local(\.js)?$/ }, (args) => ({
+      path: args.path,
+      namespace: "stub-local-storage",
+    }));
+    b.onLoad({ filter: /.*/, namespace: "stub-local-storage" }, () => ({
+      contents:
+        "export function createLocalStorage(){throw new Error('Local storage is not available on Edge. Configure R2_* env vars.');}",
+      loader: "js",
+    }));
+  },
+};
+
 const result = await build({
   entryPoints: [join(ROOT, "api/index.ts")],
   bundle: true,
@@ -43,6 +65,7 @@ const result = await build({
   // Edge runtime exposes Web APIs; mark common Node-only modules external so
   // the bundle errors loudly if anything tries to import them at runtime.
   external: ["node:*"],
+  plugins: [stubLocalStorage],
   legalComments: "none",
   minify: true,
 });

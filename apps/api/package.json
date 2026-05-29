@@ -15,11 +15,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
-    "@aws-sdk/client-s3": "^3.713.0",
-    "@aws-sdk/s3-request-presigner": "^3.713.0",
     "@inspect-ai/shared": "workspace:*",
     "@hono/node-server": "^1.13.7",
     "@neondatabase/serverless": "^0.10.4",
+    "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.36.4",
     "hono": "^4.6.12",
     "pdf-lib": "^1.17.1",

@@ -38,7 +38,7 @@ photos.post("/", async (c) => {
 
   const id = crypto.randomUUID();
   const key = buildPhotoKey(inspectionId, id, file.name || "photo.jpg");
-  const bytes = Buffer.from(await file.arrayBuffer());
+  const bytes = new Uint8Array(await file.arrayBuffer());
 
   try {
     await storage.put(key, bytes, { contentType: file.type || "image/jpeg" });
@@ -82,7 +82,7 @@ photos.get("/local/:key{.+}", async (c) => {
   try {
     const { bytes, contentType } = await storage.readLocal(key);
     c.header("Content-Type", contentType);
-    return c.body(bytes as unknown as ArrayBuffer);
+    return c.body(bytes as unknown as ArrayBuffer); // Uint8Array bytes coerce fine
   } catch {
     return c.json({ error: "not_found" }, 404);
   }

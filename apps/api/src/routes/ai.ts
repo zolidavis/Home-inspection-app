@@ -168,7 +168,7 @@ ai.post("/analyze", async (c) => {
 
   // Fetch the photo bytes through the storage adapter (R2 or local).
   const fetched = await storage.get(photo.storageKey);
-  const base64 = fetched.bytes.toString("base64");
+  const base64 = uint8ToBase64(fetched.bytes);
   const mediaType =
     fetched.contentType.startsWith("image/")
       ? (fetched.contentType as "image/jpeg" | "image/png" | "image/webp")
@@ -243,4 +243,22 @@ ai.post("/analyze", async (c) => {
 /** Exported so the suggestions route can resolve which form a tag writes to. */
 export function formForTag(tag: string): "fourPoint" | "windMit" | null {
   return TAG_SPECS[tag]?.form ?? null;
+}
+
+/**
+ * Convert Uint8Array → base64 string using only Web APIs.
+ * Buffer.toString("base64") would be simpler but isn't reliably
+ * present in Edge runtimes; btoa + chunked String.fromCharCode is.
+ * Chunk size keeps us under the stack-arg-count ceiling on big files.
+ */
+function uint8ToBase64(u8: Uint8Array): string {
+  const CHUNK = 0x8000;
+  let s = "";
+  for (let i = 0; i < u8.length; i += CHUNK) {
+    s += String.fromCharCode.apply(
+      null,
+      u8.subarray(i, Math.min(i + CHUNK, u8.length)) as unknown as number[],
+    );
+  }
+  return btoa(s);
 }

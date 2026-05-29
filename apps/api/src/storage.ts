@@ -1,22 +1,15 @@
 /**
- * Object storage adapter.
+ * Object storage adapter — Edge-compatible.
  *
  * Backends:
- *   - "r2"   when R2_ACCOUNT_ID + R2_ACCESS_KEY_ID + R2_SECRET_ACCESS_KEY + R2_BUCKET are set
+ *   - "r2"    when R2_ACCOUNT_ID + R2_ACCESS_KEY_ID + R2_SECRET_ACCESS_KEY + R2_BUCKET are set
  *   - "local" otherwise → writes to ./uploads (dev only)
  *
- * R2 uses the standard S3 API, so @aws-sdk/client-s3 works as-is with
- * a custom endpoint. Photos are private; we serve them via presigned
- * GET URLs (1h expiry) returned with each Photo on read.
- *
- * Designed so the public API (put / signedGetUrl) is identical between
- * backends — routes don't care which one is active.
+ * R2 uses SigV4 via `aws4fetch` (5 KB, pure Web Crypto + fetch).
+ * The local backend's code lives in `./storage-local.ts` so that the
+ * Edge build can stub it out — see `scripts/build-vercel.mjs`.
  */
-// node:fs/promises and node:path are NOT imported statically — they only
-// load on demand inside the local backend so the Edge bundle (which
-// chooseBackend() will route to R2) never tries to resolve them.
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { AwsClient } from "aws4fetch";
 
 export type StorageBackend = "r2" | "local";
 
@@ -26,25 +19,18 @@ export interface PutOptions {
 
 export interface Storage {
   readonly backend: StorageBackend;
-  put(key: string, bytes: Buffer, opts?: PutOptions): Promise<void>;
-  /**
-   * Fetch raw bytes for server-side use (e.g. feeding a photo into
-   * Claude vision). Works in both backends.
-   */
-  get(key: string): Promise<{ bytes: Buffer; contentType: string }>;
+  put(key: string, bytes: Uint8Array, opts?: PutOptions): Promise<void>;
+  /** Fetch raw bytes (for Claude vision input, etc.). */
+  get(key: string): Promise<{ bytes: Uint8Array; contentType: string }>;
   signedGetUrl(key: string, ttlSeconds?: number): Promise<string>;
-  /** Local backend only — read raw bytes for the dev pass-through route. */
-  readLocal?(key: string): Promise<{ bytes: Buffer; contentType: string }>;
+  /** Local backend only — used by the dev pass-through route. */
+  readLocal?(key: string): Promise<{ bytes: Uint8Array; contentType: string }>;
 }
 
 // ─── R2 backend ────────────────────────────────────────────────────────────
 
-function r2Client(accountId: string, accessKeyId: string, secretAccessKey: string): S3Client {
-  return new S3Client({
-    region: "auto",
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-    credentials: { accessKeyId, secretAccessKey },
-  });
+function r2BaseUrl(accountId: string, bucket: string): string {
+  return `https://${accountId}.r2.cloudflarestorage.com/${bucket}`;
 }
 
 function createR2Storage(): Storage {
@@ -52,102 +38,95 @@ function createR2Storage(): Storage {
   const bucket = process.env.R2_BUCKET!;
   const accessKeyId = process.env.R2_ACCESS_KEY_ID!;
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY!;
-  const client = r2Client(accountId, accessKeyId, secretAccessKey);
+  const base = r2BaseUrl(accountId, bucket);
+
+  const client = new AwsClient({
+    accessKeyId,
+    secretAccessKey,
+    service: "s3",
+    region: "auto",
+  });
 
   return {
     backend: "r2",
     async put(key, bytes, opts) {
-      await client.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: key,
-          Body: bytes,
-          ContentType: opts?.contentType ?? "application/octet-stream",
-        }),
-      );
+      const res = await client.fetch(`${base}/${encodeURI(key)}`, {
+        method: "PUT",
+        body: bytes,
+        headers: {
+          "Content-Type": opts?.contentType ?? "application/octet-stream",
+        },
+      });
+      if (!res.ok) {
+        throw new Error(`r2.put failed ${res.status} ${await res.text()}`);
+      }
     },
     async get(key) {
-      const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-      if (!res.Body) throw new Error(`r2.get: empty body for ${key}`);
-      const bytes = Buffer.from(await res.Body.transformToByteArray());
-      return { bytes, contentType: res.ContentType ?? "application/octet-stream" };
+      const res = await client.fetch(`${base}/${encodeURI(key)}`);
+      if (!res.ok) {
+        throw new Error(`r2.get failed ${res.status} for ${key}`);
+      }
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const contentType = res.headers.get("content-type") ?? "application/octet-stream";
+      return { bytes, contentType };
     },
     async signedGetUrl(key, ttlSeconds = 3600) {
-      return getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), {
-        expiresIn: ttlSeconds,
+      const signed = await client.sign(`${base}/${encodeURI(key)}`, {
+        method: "GET",
+        aws: { signQuery: true, allHeaders: false },
+        headers: {
+          "X-Amz-Expires": String(ttlSeconds),
+        },
       });
+      return signed.url;
     },
-  };
-}
-
-// ─── Local-disk backend (dev only) ─────────────────────────────────────────
-
-const LOCAL_UPLOAD_DIR = process.env.UPLOAD_DIR ?? "./uploads";
-
-/**
- * Mobile reads the API base URL from app.json#extra.apiBaseUrl. For
- * the local-served URL to actually reach the device we need that same
- * host:port. API_PUBLIC_URL lets you override (e.g. when serving from
- * a LAN IP for physical-device testing).
- */
-function publicBaseUrl(): string {
-  return process.env.API_PUBLIC_URL ?? `http://localhost:${process.env.PORT ?? 8787}`;
-}
-
-function createLocalStorage(): Storage {
-  async function readLocalImpl(key: string): Promise<{ bytes: Buffer; contentType: string }> {
-    const { join } = await import("node:path");
-    const { stat, readFile } = await import("node:fs/promises");
-    const target = join(LOCAL_UPLOAD_DIR, key);
-    await stat(target); // throws if missing → 404 in caller
-    const bytes = await readFile(target);
-    // Best-effort content-type from extension.
-    const ext = key.split(".").pop()?.toLowerCase();
-    const ct =
-      ext === "jpg" || ext === "jpeg" ? "image/jpeg"
-      : ext === "png" ? "image/png"
-      : ext === "webp" ? "image/webp"
-      : ext === "heic" ? "image/heic"
-      : "application/octet-stream";
-    return { bytes, contentType: ct };
-  }
-
-  return {
-    backend: "local",
-    async put(key, bytes) {
-      // Preserve slashes so structure mirrors R2 paths. The dev GET
-      // route below resolves these back.
-      const { join } = await import("node:path");
-      const { mkdir, writeFile } = await import("node:fs/promises");
-      const target = join(LOCAL_UPLOAD_DIR, key);
-      const dir = target.substring(0, target.lastIndexOf("/"));
-      if (dir) await mkdir(dir, { recursive: true });
-      await writeFile(target, bytes);
-    },
-    get: readLocalImpl,
-    async signedGetUrl(key) {
-      // Local "signing" is just opaque path encoding — the dev route
-      // accepts the same key back. No expiry for dev.
-      return `${publicBaseUrl()}/photos/local/${encodeURIComponent(key)}`;
-    },
-    readLocal: readLocalImpl,
   };
 }
 
 // ─── Singleton ─────────────────────────────────────────────────────────────
 
-function chooseBackend(): Storage {
-  const hasR2 =
+function hasR2(): boolean {
+  return Boolean(
     process.env.R2_ACCOUNT_ID &&
     process.env.R2_ACCESS_KEY_ID &&
     process.env.R2_SECRET_ACCESS_KEY &&
-    process.env.R2_BUCKET;
-  if (hasR2) {
+    process.env.R2_BUCKET,
+  );
+}
+
+/**
+ * Synchronous backend chooser — no top-level await (Vercel re-bundles
+ * to CJS which can't use TLA). When R2 isn't configured, returns a
+ * lazy proxy that dynamic-imports the Node-only local backend on
+ * first use. On Edge, that dynamic import resolves to a stub injected
+ * by `scripts/build-vercel.mjs` and throws if anyone calls it — but
+ * since prod always has R2 configured, it's never invoked.
+ */
+function makeLazyLocalStorage(): Storage {
+  let real: Storage | null = null;
+  const load = async () => {
+    if (!real) {
+      const mod = await import("./storage-local.js");
+      real = mod.createLocalStorage();
+    }
+    return real;
+  };
+  return {
+    backend: "local",
+    async put(key, bytes, opts) { return (await load()).put(key, bytes, opts); },
+    async get(key) { return (await load()).get(key); },
+    async signedGetUrl(key, ttl) { return (await load()).signedGetUrl(key, ttl); },
+    async readLocal(key) { return (await load()).readLocal!(key); },
+  };
+}
+
+function chooseBackend(): Storage {
+  if (hasR2()) {
     console.log("[storage] backend=r2 bucket=" + process.env.R2_BUCKET);
     return createR2Storage();
   }
-  console.log("[storage] backend=local dir=" + LOCAL_UPLOAD_DIR);
-  return createLocalStorage();
+  console.log("[storage] backend=local (lazy)");
+  return makeLazyLocalStorage();
 }
 
 export const storage: Storage = chooseBackend();
