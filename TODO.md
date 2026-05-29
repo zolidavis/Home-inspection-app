@@ -8,15 +8,16 @@ _(nothing — last active item, Google OAuth, was verified end-to-end on device 
 
 ## ✅ Recently shipped
 
+- [x] **`ANTHROPIC_API_KEY` live in prod** — verified end-to-end on deployment `inspect-ai-bfbmn5p5k`. Real Claude vision response on a test photo. Pipeline Mobile→Edge→R2→Claude→response works.
 - [x] **Google OAuth on device** — APK `h5VmdNoMH37Atc4458pZxY` (build `82421226-…`, commit `084b62b`). Sign-in works first-shot on Android. Profile screen accessible from header avatar.
 
 ## ⏭ Short-term
 
 ### Vercel env vars
 
-- [ ] **`ANTHROPIC_API_KEY`** — currently empty in Vercel; `/ai/analyze` returns the mock fallback (`{"summary": "AI analysis unavailable (ANTHROPIC_API_KEY not set).", "findings": []}`). Without this, the headline Claude-vision feature does nothing in prod. Set via `vercel env add ANTHROPIC_API_KEY production` (scope `zolidavis-projects`). Per-call cost on `claude-sonnet-4-5` is ~$0.02 per analyzed inspection photo. **Pre-req:** Anthropic billing account needs a positive balance (Wishbone hit "credit balance too low" the first time).
+- [x] **`ANTHROPIC_API_KEY`** — set in production + development 2026-05-29 evening. Verified live: `/ai/analyze` returned a real Claude response on a test photo. Headline AI feature is now ACTIVE in prod.
 - [ ] **`RENTCAST_API_KEY`** — optional. Currently empty; `/address/lookup` returns mocked owner + year built. App still works without real property data.
-- [ ] **`R2_*` + `DATABASE_URL` in preview env** — production + development are set, preview is empty. PR previews would fail until populated. Quick `vercel env add NAME preview` × 5.
+- [ ] **`R2_*` + `DATABASE_URL` + `ANTHROPIC_API_KEY` in preview env** — production + development are set, preview is empty. PR previews would fail until populated. Quick `vercel env add NAME preview` × 6.
 
 ### Stage 2 step 7
 
