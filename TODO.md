@@ -8,6 +8,7 @@ _(nothing — last active item, Google OAuth, was verified end-to-end on device 
 
 ## ✅ Recently shipped
 
+- [x] **AcroForm OIR-B1-1802 fill** — carrier-acceptable Wind Mitigation PDF generation. 198 AcroForm fields mapped. Prod verified.
 - [x] **`ANTHROPIC_API_KEY` live in prod** — verified end-to-end on deployment `inspect-ai-bfbmn5p5k`. Real Claude vision response on a test photo. Pipeline Mobile→Edge→R2→Claude→response works.
 - [x] **Google OAuth on device** — APK `h5VmdNoMH37Atc4458pZxY` (build `82421226-…`, commit `084b62b`). Sign-in works first-shot on Android. Profile screen accessible from header avatar.
 
@@ -19,9 +20,9 @@ _(nothing — last active item, Google OAuth, was verified end-to-end on device 
 - [ ] **`RENTCAST_API_KEY`** — optional. Currently empty; `/address/lookup` returns mocked owner + year built. App still works without real property data.
 - [ ] **`R2_*` + `DATABASE_URL` + `ANTHROPIC_API_KEY` in preview env** — production + development are set, preview is empty. PR previews would fail until populated. Quick `vercel env add NAME preview` × 6.
 
-### Stage 2 step 7
+### Stage 2 step 7 — DONE
 
-- [ ] **AcroForm fillable PDFs.** Current `/pdf/:id` is a layout-faithful summary. For carrier acceptance: embed the official OIR-B1-1802 fillable PDF and set field values via `pdf-lib`'s AcroForm setters. Highest-effort outstanding item (~4–6h).
+- [x] **AcroForm fillable PDFs.** Commit `9b7d910` deployed at `ce0b03b`. `/pdf/:id?type=wind_mitigation` now fills the official Florida OIR-B1-1802 (Rev. 01/12) template — 198 AcroForm fields mapped via `apps/api/src/pdf/wind-mit.ts`. 4-point stays as a generated summary (no official form). `type=both` merges via `copyPages`. Prod verified: 308 KB PDF with all values filled correctly. Sample at /src/inspect-ai-oir-1802-sample.pdf.
 
 ### Pinned
 
