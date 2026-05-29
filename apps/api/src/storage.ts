@@ -12,8 +12,9 @@
  * Designed so the public API (put / signedGetUrl) is identical between
  * backends — routes don't care which one is active.
  */
-import { mkdir, writeFile, readFile, stat } from "node:fs/promises";
-import { join } from "node:path";
+// node:fs/promises and node:path are NOT imported statically — they only
+// load on demand inside the local backend so the Edge bundle (which
+// chooseBackend() will route to R2) never tries to resolve them.
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -95,6 +96,8 @@ function publicBaseUrl(): string {
 
 function createLocalStorage(): Storage {
   async function readLocalImpl(key: string): Promise<{ bytes: Buffer; contentType: string }> {
+    const { join } = await import("node:path");
+    const { stat, readFile } = await import("node:fs/promises");
     const target = join(LOCAL_UPLOAD_DIR, key);
     await stat(target); // throws if missing → 404 in caller
     const bytes = await readFile(target);
@@ -114,6 +117,8 @@ function createLocalStorage(): Storage {
     async put(key, bytes) {
       // Preserve slashes so structure mirrors R2 paths. The dev GET
       // route below resolves these back.
+      const { join } = await import("node:path");
+      const { mkdir, writeFile } = await import("node:fs/promises");
       const target = join(LOCAL_UPLOAD_DIR, key);
       const dir = target.substring(0, target.lastIndexOf("/"));
       if (dir) await mkdir(dir, { recursive: true });

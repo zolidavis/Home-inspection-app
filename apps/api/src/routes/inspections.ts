@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { randomUUID } from "node:crypto";
 import {
   AddressSchema,
   FourPoint,
@@ -27,7 +26,7 @@ inspections.post("/", async (c) => {
 
   const now = new Date().toISOString();
   const inspection: Inspection = {
-    id: randomUUID(),
+    id: crypto.randomUUID(),
     type: parsed.data.type,
     address: parsed.data.address,
     photos: [],

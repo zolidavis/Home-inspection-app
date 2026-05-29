@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { randomUUID } from "node:crypto";
 import type { Photo } from "@inspect-ai/shared";
 import { store } from "../store.js";
 import { buildPhotoKey, storage } from "../storage.js";
@@ -37,7 +36,7 @@ photos.post("/", async (c) => {
     return c.json({ error: "inspection_not_found" }, 404);
   }
 
-  const id = randomUUID();
+  const id = crypto.randomUUID();
   const key = buildPhotoKey(inspectionId, id, file.name || "photo.jpg");
   const bytes = Buffer.from(await file.arrayBuffer());
 

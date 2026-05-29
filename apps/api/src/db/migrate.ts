@@ -1,14 +1,14 @@
 /**
  * Standalone migration runner. Use `pnpm db:migrate` to apply pending
  * migrations against $DATABASE_URL. Safe to run repeatedly — Drizzle
- * tracks applied migrations in __drizzle_migrations.
+ * tracks applied migrations in the __drizzle_migrations metadata table.
  *
- * Uses a fresh unpooled connection so DDL doesn't conflict with the
- * pooler's session limits.
+ * Uses the same neon-http driver as the app — each SQL statement in a
+ * migration file becomes its own HTTP request, no TCP required.
  */
-import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-import postgres from "postgres";
+import { drizzle } from "drizzle-orm/neon-http";
+import { migrate } from "drizzle-orm/neon-http/migrator";
+import { neon } from "@neondatabase/serverless";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -18,12 +18,11 @@ if (!url) {
   process.exit(1);
 }
 
-const sql = postgres(url, { max: 1 });
+const sql = neon(url);
 const db = drizzle(sql);
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = resolve(here, "../../drizzle");
 
 await migrate(db, { migrationsFolder });
-await sql.end();
 console.log("✓ migrations applied");

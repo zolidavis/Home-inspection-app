@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "build:vercel": "node scripts/build-vercel.mjs",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
@@ -18,15 +19,16 @@
     "@aws-sdk/s3-request-presigner": "^3.713.0",
     "@inspect-ai/shared": "workspace:*",
     "@hono/node-server": "^1.13.7",
+    "@neondatabase/serverless": "^0.10.4",
     "drizzle-orm": "^0.36.4",
     "hono": "^4.6.12",
     "pdf-lib": "^1.17.1",
-    "postgres": "^3.4.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
     "drizzle-kit": "^0.28.1",
+    "esbuild": "^0.24.0",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
