@@ -8,11 +8,21 @@ _(nothing — last active item, Google OAuth, was verified end-to-end on device 
 
 ## ✅ Recently shipped
 
+- [x] **4-Point Citizens overlay (V1)** — commit `bc9f0d0`. `/pdf/:id?type=four_point` now overlays values on the official Citizens Insp4pt 03 25 template (de facto FL carrier standard). V1 fills the page-1 header (insured name, address, year built, date inspected) and page-3 inspector signature line (name + license). Body sections (electrical/HVAC/plumbing/roof) marked TODO(v2) — those need ~50 individually-measured x/y positions, the pdftotext bbox HTML at /tmp/oir/4pt-bbox.html has all label coordinates ready to parse.
 - [x] **AcroForm OIR-B1-1802 fill** — carrier-acceptable Wind Mitigation PDF generation. 198 AcroForm fields mapped. Prod verified.
 - [x] **`ANTHROPIC_API_KEY` live in prod** — verified end-to-end on deployment `inspect-ai-bfbmn5p5k`. Real Claude vision response on a test photo. Pipeline Mobile→Edge→R2→Claude→response works.
 - [x] **Google OAuth on device** — APK `h5VmdNoMH37Atc4458pZxY` (build `82421226-…`, commit `084b62b`). Sign-in works first-shot on Android. Profile screen accessible from header avatar.
 
 ## ⏭ Short-term
+
+### 4-Point V2 — body sections
+
+- [ ] **Overlay electrical body section** on Citizens template. Total Amps, Main Panel age/year-updated/brand, Wiring Type checkbox, General condition (Satisfactory/Unsatisfactory) checkbox. Page 1 lower half.
+- [ ] **Overlay HVAC section.** Central AC Yes/No, working-order Yes/No, Age of system, Year last updated. Page 2 upper.
+- [ ] **Overlay Plumbing section.** TPRV Yes/No, leak indicators, water heater age, supply pipe age + material checkboxes. Page 2 lower.
+- [ ] **Overlay Roof section.** Covering material, age, remaining life, overall condition checkbox, visible damage checkboxes. Page 3 upper. Most schema-rich section.
+- [ ] **Iterate position measurements** — bbox HTML at /tmp/oir/4pt-bbox.html has every label's exact PDF point. Write a Python helper that auto-emits the TS position table from the bbox + a schema-to-label mapping.
+
 
 ### Vercel env vars
 
